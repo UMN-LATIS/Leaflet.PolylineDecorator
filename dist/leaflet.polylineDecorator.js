@@ -75,17 +75,21 @@ function projectPatternOnPointPath(pts, pattern) {
     var endOffset = asRatioToPathLength(pattern.endOffset, totalPathLength);
     var repeat = asRatioToPathLength(pattern.repeat, totalPathLength);
 
-    var repeatIntervalPixels = totalPathLength * repeat;
-    var startOffsetPixels = offset > 0 ? totalPathLength * offset : 0;
-    var endOffsetPixels = endOffset > 0 ? totalPathLength * endOffset : 0;
     var lineOffset = pattern.lineOffset || 0;
 
     // 2. generate the positions of the pattern as offsets from the path start
     var positionOffsets = [];
-    var positionOffset = startOffsetPixels;
-    while (repeatIntervalPixels > 0 && positionOffset < totalPathLength - endOffsetPixels) {
-        positionOffsets.push(positionOffset);
-        positionOffset += repeatIntervalPixels;
+    if (repeat) {
+        var repeatIntervalPixels = totalPathLength * repeat;
+        var endOffsetPixels = endOffset > 0 ? totalPathLength * endOffset : 0;
+        var positionOffset = offset > 0 ? totalPathLength * offset : 0;
+
+        while (repeatIntervalPixels > 0 && positionOffset <= totalPathLength - endOffsetPixels) {
+            positionOffsets.push(positionOffset);
+            positionOffset += repeatIntervalPixels;
+        }
+    } else {
+        positionOffsets.push(offset > 0 ? totalPathLength * offset : 0);
     }
 
     // 3. projects offsets to segments
@@ -187,12 +191,6 @@ function interpolateBetweenPoints(ptA, ptB, ratio, lineOffset, length) {
         }
     });
 })();
-
-// enable rotationAngle and rotationOrigin support on L.Marker
-/**
-* Defines several classes of symbol factories,
-* to be used with L.PolylineDecorator
-*/
 
 L$1.Symbol = L$1.Symbol || {};
 
