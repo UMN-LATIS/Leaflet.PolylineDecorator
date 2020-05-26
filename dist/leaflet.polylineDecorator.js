@@ -75,17 +75,22 @@ function projectPatternOnPointPath(pts, pattern) {
     var endOffset = asRatioToPathLength(pattern.endOffset, totalPathLength);
     var repeat = asRatioToPathLength(pattern.repeat, totalPathLength);
 
-    var repeatIntervalPixels = totalPathLength * repeat;
-    var startOffsetPixels = offset > 0 ? totalPathLength * offset : 0;
-    var endOffsetPixels = endOffset > 0 ? totalPathLength * endOffset : 0;
+    var lineOffset = pattern.lineOffset || 0;
 
     // 2. generate the positions of the pattern as offsets from the path start
     var positionOffsets = [];
-    var positionOffset = startOffsetPixels;
-    do {
-        positionOffsets.push(positionOffset);
-        positionOffset += repeatIntervalPixels;
-    } while (repeatIntervalPixels > 0 && positionOffset < totalPathLength - endOffsetPixels);
+    if (repeat) {
+        var repeatIntervalPixels = totalPathLength * repeat;
+        var endOffsetPixels = endOffset > 0 ? totalPathLength * endOffset : 0;
+        var positionOffset = offset > 0 ? totalPathLength * offset : 0;
+
+        while (repeatIntervalPixels > 0 && positionOffset <= totalPathLength - endOffsetPixels) {
+            positionOffsets.push(positionOffset);
+            positionOffset += repeatIntervalPixels;
+        }
+    } else {
+        positionOffsets.push(offset > 0 ? totalPathLength * offset : 0);
+    }
 
     // 3. projects offsets to segments
     var segmentIndex = 0;
@@ -100,7 +105,7 @@ function projectPatternOnPointPath(pts, pattern) {
 
         var segmentRatio = (positionOffset - segment.distA) / (segment.distB - segment.distA);
         return {
-            pt: interpolateBetweenPoints(segment.a, segment.b, segmentRatio),
+            pt: interpolateBetweenPoints(segment.a, segment.b, segmentRatio, lineOffset, segment.distB - segment.distA),
             heading: segment.heading
         };
     });
@@ -110,17 +115,22 @@ function projectPatternOnPointPath(pts, pattern) {
 * Finds the point which lies on the segment defined by points A and B,
 * at the given ratio of the distance from A to B, by linear interpolation.
 */
-function interpolateBetweenPoints(ptA, ptB, ratio) {
+function interpolateBetweenPoints(ptA, ptB, ratio, lineOffset, length) {
+    var n = { x: 0, y: 0 };
+    if (lineOffset !== 0) {
+        n = { x: -(ptB.y - ptA.y) / length, y: (ptB.x - ptA.x) / length };
+    }
+
     if (ptB.x !== ptA.x) {
         return {
-            x: ptA.x + ratio * (ptB.x - ptA.x),
-            y: ptA.y + ratio * (ptB.y - ptA.y)
+            x: ptA.x + ratio * (ptB.x - ptA.x) + n.x * lineOffset,
+            y: ptA.y + ratio * (ptB.y - ptA.y) + n.y * lineOffset
         };
     }
     // special case where points lie on the same vertical axis
     return {
-        x: ptA.x,
-        y: ptA.y + (ptB.y - ptA.y) * ratio
+        x: ptA.x + n.x * lineOffset,
+        y: ptA.y + (ptB.y - ptA.y) * ratio + n.y * lineOffset
     };
 }
 
@@ -226,6 +236,7 @@ L$1.Symbol.ArrowHead = L$1.Class.extend({
         polygon: true,
         pixelSize: 10,
         headAngle: 60,
+        angleCorrection: 0,
         pathOptions: {
             stroke: false,
             weight: 2
@@ -244,7 +255,7 @@ L$1.Symbol.ArrowHead = L$1.Class.extend({
     _buildArrowPath: function _buildArrowPath(dirPoint, map) {
         var d2r = Math.PI / 180;
         var tipPoint = map.project(dirPoint.latLng);
-        var direction = -(dirPoint.heading - 90) * d2r;
+        var direction = -(dirPoint.heading - 90 + this.options.angleCorrection) * d2r;
         var radianArrowAngle = this.options.headAngle / 2 * d2r;
 
         var headAngle1 = direction + radianArrowAngle;
@@ -367,7 +378,8 @@ L$1.PolylineDecorator = L$1.FeatureGroup.extend({
             // absolute (in pixels) or relative (in percentage of the polyline length)
             offset: parseRelativeOrAbsoluteValue(patternDef.offset),
             endOffset: parseRelativeOrAbsoluteValue(patternDef.endOffset),
-            repeat: parseRelativeOrAbsoluteValue(patternDef.repeat)
+            repeat: parseRelativeOrAbsoluteValue(patternDef.repeat),
+            lineOffset: patternDef.lineOffset
         };
     },
 
